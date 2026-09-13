@@ -1,11 +1,19 @@
 import { relations } from "drizzle-orm/_relations";
 import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import { notification } from "./notification";
+import { foods, nutritionEntries, nutritionGoals } from "./nutritions";
+import { taskCategories, tasks } from "./tasks";
+import { UserRoles } from "@/lib/constants";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  role: text("role").$type<UserRoles>()
+    .default("user")
+    .notNull(),
+  isPremium: boolean("isPremium").default(false),
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
@@ -76,6 +84,12 @@ export const verification = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  notifications: many(notification),
+  tasks: many(tasks),
+  taskCategories: many(taskCategories),
+  foods: many(foods),
+  nutritionEntries: many(nutritionEntries),
+  nutritionGoals: many(nutritionGoals),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
