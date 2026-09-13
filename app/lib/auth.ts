@@ -22,5 +22,10 @@ export const auth = betterAuth({
         }
     },
 
-    trustedOrigins: [env.NEXT_PUBLIC_APP_BASE_URL!],
+    trustedOrigins: [
+        env.NEXT_PUBLIC_APP_BASE_URL!,
+        "mobile://",
+        "mobile://*",
+        ...(env.NODE_ENV === "development" ? ["exp://", "exp://**"] : []),
+    ],
 });

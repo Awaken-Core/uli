@@ -4,6 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:docker": "docker compose up -d && next dev",
+    "drizzle:migrate": "npx drizzle-kit migrate",
+    "drizzle:generate": "npx drizzle-kit generate",
+    "drizzle:push": "npx drizzle-kit push",
+    "drizzle:studio": "npx drizzle-kit studio",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

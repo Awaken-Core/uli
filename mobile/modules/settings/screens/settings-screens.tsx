@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { authClient } from "@/lib/auth-client";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
@@ -18,6 +19,7 @@ const MUTED = "#858585";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [mealReminders, setMealReminders] = useState(true);
   const [waterReminders, setWaterReminders] = useState(true);
   const [weeklyReport, setWeeklyReport] = useState(false);
@@ -114,9 +116,19 @@ export default function SettingsScreen() {
           <SettingLink icon="help-circle-outline" title="Help and support" />
         </View>
 
-        <Pressable style={styles.signOutButton}>
+        <Pressable
+          disabled={isSigningOut}
+          onPress={async () => {
+            setIsSigningOut(true);
+            await authClient.signOut();
+            setIsSigningOut(false);
+          }}
+          style={[styles.signOutButton, isSigningOut && styles.disabled]}
+        >
           <Ionicons name="log-out-outline" size={18} color="#FF7777" />
-          <Text style={styles.signOutText}>Sign out</Text>
+          <Text style={styles.signOutText}>
+            {isSigningOut ? "Signing out..." : "Sign out"}
+          </Text>
         </Pressable>
         <Text style={styles.version}>Uli mobile · Version 1.0.0</Text>
       </ScrollView>
@@ -270,6 +282,7 @@ const styles = StyleSheet.create({
     borderColor: "#3B2525",
   },
   signOutText: { color: "#FF7777", fontSize: 11, fontWeight: "800" },
+  disabled: { opacity: 0.6 },
   version: {
     color: "#4E4E4E",
     fontSize: 8,

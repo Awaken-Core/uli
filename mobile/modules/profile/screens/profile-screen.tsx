@@ -6,6 +6,7 @@ import { NotificationModal } from "@/modules/notifications/components/notificati
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useRef } from "react";
 import SettingsBtn from "../components/settings-btn";
+import { authClient } from "@/lib/auth-client";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
@@ -34,6 +35,10 @@ const week = [
 
 export default function ProfileScreen() {
   const notificationRef = useRef<BottomSheetModal>(null);
+  const { data: session } = authClient.useSession();
+  const displayName = session?.user.name || "Uli user";
+  const username =
+    session?.user.email?.split("@")[0] || displayName.toLowerCase().replace(/\s+/g, "_");
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
@@ -64,15 +69,15 @@ export default function ProfileScreen() {
         <View style={styles.profileHero}>
           <View style={styles.avatarRing}>
             <View style={styles.avatarClip}>
-              <UserAvatar username={demoUser.avatarSeed} />
+              <UserAvatar username={session?.user.id || demoUser.avatarSeed} />
             </View>
             <View style={styles.onlineBadge}>
               <Ionicons name="checkmark" size={12} color={INK} />
             </View>
           </View>
 
-          <Text style={styles.name}>{demoUser.name}</Text>
-          <Text style={styles.username}>@{demoUser.username}</Text>
+          <Text style={styles.name}>{displayName}</Text>
+          <Text style={styles.username}>@{username}</Text>
 
           <Pressable style={styles.editButton}>
             <Ionicons name="pencil" size={13} color="#DCDCDC" />
