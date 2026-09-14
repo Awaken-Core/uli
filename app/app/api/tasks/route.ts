@@ -34,9 +34,16 @@ export async function POST(req: NextRequest) {
   const parsed = createTaskSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
+  const data = parsed.data;
   const [task] = await client
     .insert(tasks)
-    .values({ ...parsed.data, userId: session!.user.id })
+    .values({
+      ...data,
+      userId: session!.user.id,
+      scheduledStartAt: data.scheduledStartAt ? new Date(data.scheduledStartAt) : undefined,
+      scheduledEndAt: data.scheduledEndAt ? new Date(data.scheduledEndAt) : undefined,
+      dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
+    })
     .returning();
 
   return NextResponse.json(task, { status: 201 });

@@ -30,9 +30,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const parsed = updateTaskSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
+  const data = parsed.data;
+  const updateValues = {
+    ...data,
+    scheduledStartAt: data.scheduledStartAt ? new Date(data.scheduledStartAt) : undefined,
+    scheduledEndAt: data.scheduledEndAt ? new Date(data.scheduledEndAt) : undefined,
+    dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
+    completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
+  };
+
   const [task] = await client
     .update(tasks)
-    .set(parsed.data)
+    .set(updateValues)
     .where(and(eq(tasks.id, id), eq(tasks.userId, session!.user.id)))
     .returning();
 
