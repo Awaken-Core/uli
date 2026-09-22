@@ -91,89 +91,91 @@ export default function PricingPage() {
 
       <div className="flex-1 space-y-8 p-4 md:p-8 pt-6 max-w-6xl mx-auto w-full">
         {/* Title & Billing Toggle */}
-        <div className="text-center space-y-3 max-w-2xl mx-auto">
+        <div className="text-center space-y-4 max-w-2xl mx-auto">
           <Badge variant="outline" className="px-3 py-1 font-mono text-xs">
             Health as a Service (HaaS)
           </Badge>
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
             Invest in Your Peak Daily Performance
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Choose the tier that fuels your lifestyle. Upgrade, downgrade, or cancel anytime.
           </p>
 
-          {/* Billing Toggle */}
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <span
-              className={`text-xs font-semibold cursor-pointer ${
-                billingCycle === "monthly" ? "text-foreground" : "text-muted-foreground"
-              }`}
-              onClick={() => setBillingCycle("monthly")}
-            >
-              Monthly Billing
-            </span>
-
+          {/* Segmented Billing Toggle */}
+          <div className="inline-flex items-center p-1 rounded-full bg-muted/80 border border-border/80 shadow-xs">
             <button
               type="button"
-              onClick={() => setBillingCycle((c) => (c === "monthly" ? "yearly" : "monthly"))}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                billingCycle === "yearly" ? "bg-primary" : "bg-muted"
+              onClick={() => setBillingCycle("monthly")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                billingCycle === "monthly"
+                  ? "bg-background text-foreground shadow-xs border border-border/40"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-background shadow ring-0 transition duration-200 ease-in-out ${
-                  billingCycle === "yearly" ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
+              Monthly Billing
             </button>
-
-            <span
-              className={`text-xs font-semibold cursor-pointer flex items-center gap-1.5 ${
-                billingCycle === "yearly" ? "text-foreground" : "text-muted-foreground"
-              }`}
+            <button
+              type="button"
               onClick={() => setBillingCycle("yearly")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                billingCycle === "yearly"
+                  ? "bg-background text-foreground shadow-xs border border-border/40"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              Annual Billing
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <span>Annual Billing</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                 Save 20%
               </span>
-            </span>
+            </button>
           </div>
         </div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid gap-6 lg:grid-cols-3 items-stretch">
+        <div className="grid gap-6 lg:grid-cols-3 items-stretch pt-2">
           {plans.map((plan) => {
-            const price = billingCycle === "monthly" ? plan.priceMonthly : Math.round(plan.priceYearly / 12);
+            const price =
+              billingCycle === "monthly"
+                ? plan.priceMonthly
+                : Math.round(plan.priceYearly / 12);
 
             return (
               <Card
                 key={plan.id}
-                className={`flex flex-col justify-between relative transition-all ${
+                className={`flex flex-col justify-between transition-all rounded-xl ${
                   plan.highlighted
-                    ? "border-primary shadow-lg ring-1 ring-primary/20 bg-card"
-                    : "border-border/80 bg-card"
+                    ? "border-primary shadow-lg ring-2 ring-primary/30 bg-card"
+                    : "border-border/80 bg-card hover:border-border"
                 }`}
               >
-                {plan.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground font-semibold text-[11px] px-3">
-                      {plan.badge}
-                    </Badge>
-                  </div>
-                )}
+                <CardHeader className="space-y-3 pt-6 pb-4">
+                  {/* Title & Badge */}
+                  <div className="flex items-center justify-between gap-2 min-h-7">
+                    <span className="text-xl font-bold flex items-center gap-2">
+                      <span>{plan.name}</span>
+                      {plan.id === "pro" && <Sparkles className="size-4 text-primary" />}
+                      {plan.id === "elite" && <Gem className="size-4 text-primary" />}
+                    </span>
 
-                <CardHeader className="space-y-2 pt-6">
-                  <CardTitle className="text-xl font-bold flex items-center justify-between">
-                    <span>{plan.name}</span>
-                    {plan.id === "pro" && <Sparkles className="size-4 text-primary" />}
-                    {plan.id === "elite" && <Gem className="size-4 text-primary" />}
-                  </CardTitle>
-                  <CardDescription className="text-xs min-h-8">
+                    {plan.badge && (
+                      <Badge
+                        className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          plan.highlighted
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-foreground border border-border"
+                        }`}
+                      >
+                        {plan.badge}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <CardDescription className="text-xs min-h-9 leading-relaxed">
                     {plan.description}
                   </CardDescription>
 
-                  <div className="pt-2">
+                  <div className="pt-2 border-t border-border/40">
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-extrabold tracking-tight">
                         ${price}
@@ -183,38 +185,40 @@ export default function PricingPage() {
                       </span>
                     </div>
                     {billingCycle === "yearly" && plan.priceYearly > 0 && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <p className="text-[11px] text-muted-foreground mt-1">
                         Billed annually at ${plan.priceYearly}/year
                       </p>
                     )}
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-4 flex-1">
+                <CardContent className="space-y-4 flex-1 pt-2 pb-6">
                   <div className="border-t border-border/60 pt-4 space-y-2.5">
                     <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
                       Included with {plan.name}:
                     </p>
-                    <ul className="space-y-2 text-xs text-muted-foreground">
+                    <ul className="space-y-2.5 text-xs text-muted-foreground">
                       {plan.features.map((feat) => (
-                        <li key={feat} className="flex items-start gap-2">
-                          <Check className="size-3.5 text-primary shrink-0 mt-0.5" />
-                          <span>{feat}</span>
+                        <li key={feat} className="flex items-start gap-2.5">
+                          <Check className="size-4 text-primary shrink-0 mt-0.5" />
+                          <span className="leading-snug">{feat}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                 </CardContent>
 
-                <CardFooter className="pt-4 border-t border-border/60">
+                <CardFooter className="pt-4 pb-6 border-t border-border/60">
                   <Button
                     variant={plan.highlighted ? "default" : "outline"}
-                    className="w-full text-xs font-semibold gap-1.5 h-9"
+                    className="w-full text-xs font-semibold gap-1.5 h-10 shadow-xs"
                     onClick={() => {
                       if (plan.id === "starter") {
                         alert("You are currently on the Starter plan.");
                       } else {
-                        alert(`Redirecting to secure checkout for ${plan.name} (${billingCycle})...`);
+                        alert(
+                          `Redirecting to secure checkout for ${plan.name} (${billingCycle})...`
+                        );
                       }
                     }}
                   >
@@ -228,14 +232,14 @@ export default function PricingPage() {
         </div>
 
         {/* Guarantee Banner */}
-        <div className="p-4 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className="p-4 sm:p-5 rounded-xl border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Shield className="size-5" />
             </div>
             <div>
-              <p className="font-semibold text-foreground">30-Day Money-Back Guarantee</p>
-              <p className="text-muted-foreground">
+              <p className="font-semibold text-foreground text-sm">30-Day Money-Back Guarantee</p>
+              <p className="text-muted-foreground mt-0.5">
                 If Uli HaaS doesn't transform your daily health and productivity, request a full refund within 30 days.
               </p>
             </div>

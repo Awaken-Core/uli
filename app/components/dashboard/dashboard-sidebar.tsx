@@ -70,11 +70,7 @@ function NavSection({ label, items, pathname }: NavSectionProps) {
             <SidebarGroupContent>
                 <SidebarMenu>
                     {items.map((item) => {
-                        const isActive = item.url
-                            ? item.url === "/dashboard"
-                                ? pathname === "/dashboard"
-                                : pathname.startsWith(item.url)
-                            : false;
+                        const isActive = item.url ? pathname === item.url : false;
 
                         return (
                             <SidebarMenuItem key={item.title}>
@@ -179,9 +175,9 @@ export function DashboardSidebar() {
         <Sidebar collapsible="icon">
             <SidebarHeader className="flex flex-col gap-4 pt-4">
                 <div className="flex items-center gap-2.5 pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pl-0">
-                    <SidebarTrigger className="p-0 size-8 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center font-bold text-sm shadow-sm shrink-0 border-none cursor-pointer">
+                    <div className="size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
                         U
-                    </SidebarTrigger>
+                    </div>
                     <div className="flex flex-col group-data-[collapsible=icon]:hidden leading-tight flex-1">
                         <span className="font-semibold text-base tracking-tight text-foreground flex items-center gap-1.5">
                             Uli
@@ -191,7 +187,7 @@ export function DashboardSidebar() {
                         </span>
                         <span className="text-[11px] text-muted-foreground">Health as a Service</span>
                     </div>
-                    <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:hidden" />
+                    <SidebarTrigger className="ml-auto" />
                 </div>
             </SidebarHeader>
             <div className="border-b border-dashed border-border" />
