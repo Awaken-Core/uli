@@ -20,7 +20,8 @@ export default async function DashboardLayout({
         redirect("/sign-in");
     }
 
-    const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+    // Default open to true so the sidebar is expanded on visit
+    const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
     return (
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh">
