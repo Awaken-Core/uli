@@ -174,16 +174,27 @@ export const tasksApi = {
   },
 
   createTask: (data: Partial<TaskItem> & { title: string }) => {
+    const payload = {
+      ...data,
+      categoryId: data.categoryId || undefined,
+      parentTaskId: data.parentTaskId || undefined,
+      scheduledDate: data.scheduledDate || undefined,
+    };
     return request<TaskItem>("/api/tasks", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
   updateTask: (id: string, data: Partial<TaskItem>) => {
+    const payload = {
+      ...data,
+      categoryId: data.categoryId === "" ? undefined : data.categoryId,
+      parentTaskId: data.parentTaskId === "" ? undefined : data.parentTaskId,
+    };
     return request<TaskItem>(`/api/tasks/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -238,16 +249,25 @@ export const nutritionApi = {
   },
 
   createEntry: (data: Partial<NutritionEntry> & { quantity: number }) => {
+    const payload = {
+      ...data,
+      foodId: data.foodId || undefined,
+      notes: data.notes || undefined,
+    };
     return request<NutritionEntry>("/api/nutrition/entries", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
   updateEntry: (id: string, data: Partial<NutritionEntry>) => {
+    const payload = {
+      ...data,
+      foodId: data.foodId === "" ? undefined : data.foodId,
+    };
     return request<NutritionEntry>(`/api/nutrition/entries/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -269,9 +289,14 @@ export const foodsApi = {
   },
 
   createFood: (data: Omit<FoodItem, "id" | "ownerId" | "createdAt" | "updatedAt">) => {
+    const payload = {
+      ...data,
+      brand: data.brand?.trim() || undefined,
+      barcode: data.barcode?.trim() || undefined,
+    };
     return request<FoodItem>("/api/nutrition/foods", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -283,12 +308,18 @@ export const foodsApi = {
 };
 
 export const goalsApi = {
-  getGoals: (date?: string, timezone?: string) => {
+  getGoals: async (date?: string, timezone?: string) => {
     const search = new URLSearchParams();
     if (date) search.set("date", date);
     if (timezone) search.set("timezone", timezone);
     const qs = search.toString();
-    return request<NutritionGoal | null>(`/api/nutrition/goals${qs ? `?${qs}` : ""}`);
+    const res = await request<NutritionGoal | NutritionGoal[] | null>(
+      `/api/nutrition/goals${qs ? `?${qs}` : ""}`
+    );
+    if (Array.isArray(res)) {
+      return res[0] ?? null;
+    }
+    return res;
   },
 
   createGoal: (data: {
@@ -302,9 +333,13 @@ export const goalsApi = {
     sodiumMilligramsLimit?: number;
     waterMillilitersTarget?: number;
   }) => {
+    const payload = {
+      ...data,
+      effectiveTo: data.effectiveTo?.trim() || undefined,
+    };
     return request<NutritionGoal>("/api/nutrition/goals", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
   },
 
