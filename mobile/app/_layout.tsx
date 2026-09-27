@@ -3,13 +3,23 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SystemUI from "expo-system-ui";
 import { ActivityIndicator, View } from "react-native";
+import { useEffect } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { useNutritionStore } from "@/stores/nutrition-store";
+import { useTasksStore } from "@/stores/tasks-store";
 
 SystemUI.setBackgroundColorAsync("#101010");
 
 export default function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      useNutritionStore.getState().reset();
+      useTasksStore.getState().reset();
+    }
+  }, [isPending, session]);
 
   if (isPending) {
     return (
@@ -52,6 +62,14 @@ export default function RootLayout() {
                 animation: "slide_from_right",
                 contentStyle: { backgroundColor: "#101010" },
               }}
+            />
+            <Stack.Screen
+              name="tasks"
+              options={{ headerShown: false, animation: "slide_from_right" }}
+            />
+            <Stack.Screen
+              name="nutrition-settings"
+              options={{ headerShown: false, animation: "slide_from_right" }}
             />
           </Stack.Protected>
           <Stack.Protected guard={!session}>

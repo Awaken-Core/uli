@@ -2,71 +2,100 @@ import UserAvatar from "@/modules/profile/components/profile-icon";
 import { NotificationModal } from "@/modules/notifications/components/notification-modal";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
-import { useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
+import { useRouter } from "expo-router";
+import { authClient } from "@/lib/auth-client";
+import { useNutritionStore } from "@/stores/nutrition-store";
+import { useTasksStore } from "@/stores/tasks-store";
+import { getLocalDateKey } from "@/lib/date";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
 const CARD = "#191919";
 const MUTED = "#858585";
 
-const daily = {
-  name: "Mehul",
-  consumed: 1360,
-  target: 2000,
-  protein: { value: 82, target: 120 },
-  carbs: { value: 148, target: 220 },
-  fats: { value: 46, target: 65 },
-};
-
-const meals = [
-  {
-    icon: "sunny-outline" as const,
-    name: "Breakfast",
-    detail: "Eggs, toast & chai",
-    calories: 410,
-    logged: true,
-  },
-  {
-    icon: "restaurant-outline" as const,
-    name: "Lunch",
-    detail: "Paneer rice bowl",
-    calories: 620,
-    logged: true,
-  },
-  {
-    icon: "cafe-outline" as const,
-    name: "Snack",
-    detail: "Banana & almonds",
-    calories: 330,
-    logged: true,
-  },
-  {
-    icon: "moon-outline" as const,
-    name: "Dinner",
-    detail: "Not logged yet",
-    calories: 0,
-    logged: false,
-  },
-];
-
 export default function HomeScreen() {
   const notificationRef = useRef<BottomSheetModal>(null);
+  const router = useRouter();
+  const { data: session } = authClient.useSession();
+  const { summary, isLoading, loadSummary } = useNutritionStore();
+  const taskStore = useTasksStore();
+  useEffect(() => {
+    void loadSummary();
+    void taskStore.load();
+  }, [loadSummary, taskStore.load]);
+  const consumed = summary?.summary.consumed;
+  const target = summary?.summary.target;
+  const daily = {
+    name: session?.user.name?.split(" ")[0] || "there",
+    consumed: consumed?.calories ?? 0,
+    target: target?.calories ?? 2000,
+    protein: { value: consumed?.protein ?? 0, target: target?.protein ?? 120 },
+    carbs: {
+      value: consumed?.carbohydrates ?? 0,
+      target: target?.carbohydrates ?? 220,
+    },
+    fats: { value: consumed?.fats ?? 0, target: target?.fats ?? 65 },
+  };
+  const meals = useMemo(
+    () =>
+      [
+        { icon: "sunny-outline" as const, name: "Breakfast", key: "breakfast" },
+        { icon: "restaurant-outline" as const, name: "Lunch", key: "lunch" },
+        { icon: "cafe-outline" as const, name: "Snack", key: "snack" },
+        { icon: "moon-outline" as const, name: "Dinner", key: "dinner" },
+      ].map((meal) => {
+        const group = summary?.byMeal[meal.key];
+        return {
+          ...meal,
+          calories: group?.calories ?? 0,
+          logged: Boolean(group?.itemsCount),
+          detail:
+            group?.entries
+              .map((entry) => entry.foodName)
+              .slice(0, 2)
+              .join(", ") || "Not logged yet",
+        };
+      }),
+    [summary],
+  );
   const remaining = daily.target - daily.consumed;
-  const progress = daily.consumed / daily.target;
+  const progress =
+    daily.target > 0 ? Math.min(daily.consumed / daily.target, 1) : 0;
+  const openTasks = taskStore.tasks.filter(
+    (task) => task.status !== "completed",
+  );
+  const todayTasks = openTasks.filter(
+    (task) => task.scheduledDate === getLocalDateKey(),
+  );
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={loadSummary}
+            tintColor={GREEN}
+          />
+        }
       >
         <View style={styles.header}>
           <View style={styles.avatarShell}>
             <View style={styles.avatarInner}>
-              <UserAvatar username="Mehul Sharma" />
+              <UserAvatar username={session?.user.id || "uli-user"} />
             </View>
           </View>
 
@@ -86,13 +115,28 @@ export default function HomeScreen() {
 
         <View style={styles.dateRow}>
           <View>
-            <Text style={styles.eyebrow}>THURSDAY, AUG 27</Text>
+            <Text style={styles.eyebrow}>
+              {new Date()
+                .toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })
+                .toUpperCase()}
+            </Text>
             <Text style={styles.title}>Today’s overview</Text>
           </View>
-          <View style={styles.streakPill}>
-            <Ionicons name="flame" size={15} color={INK} />
-            <Text style={styles.streakText}>12 day streak</Text>
-          </View>
+          <Pressable
+            onPress={() => router.push("/tasks")}
+            style={styles.streakPill}
+          >
+            <Ionicons name="checkmark-done" size={15} color={INK} />
+            <Text style={styles.streakText}>
+              {todayTasks.length
+                ? `${todayTasks.length} tasks today`
+                : "View tasks"}
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.calorieCard}>
@@ -144,7 +188,10 @@ export default function HomeScreen() {
             />
           </View>
 
-          <Pressable style={styles.logFoodButton}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/fitness")}
+            style={styles.logFoodButton}
+          >
             <View style={styles.logFoodIcon}>
               <Ionicons name="add" size={17} color={INK} />
             </View>
@@ -158,17 +205,21 @@ export default function HomeScreen() {
           <TargetCard
             icon="water"
             label="Water"
-            value="5 / 8"
-            unit="glasses"
-            progress={0.625}
+            value={`${target?.water ?? 2000}`}
+            unit="ml daily goal"
+            progress={0}
             color="#70D7FF"
           />
           <TargetCard
             icon="leaf"
             label="Fiber"
-            value="18 / 30"
+            value={`${consumed?.fiber ?? 0} / ${target?.fiber ?? 30}`}
             unit="grams"
-            progress={0.6}
+            progress={
+              (target?.fiber ?? 30) > 0
+                ? Math.min((consumed?.fiber ?? 0) / (target?.fiber ?? 30), 1)
+                : 0
+            }
             color={GREEN}
           />
         </View>
@@ -184,25 +235,34 @@ export default function HomeScreen() {
         <View style={styles.activityCard}>
           <ActivityItem
             icon="nutrition-outline"
-            value="3 / 5"
-            label="fruit & veg"
+            value={`${meals.filter((meal) => meal.logged).length} / 4`}
+            label="meals logged"
           />
           <View style={styles.activityDivider} />
-          <ActivityItem icon="cube-outline" value="24g" label="sugar today" />
+          <ActivityItem
+            icon="cube-outline"
+            value={`${consumed?.sugar ?? 0}g`}
+            label="sugar today"
+          />
           <View style={styles.activityDivider} />
           <ActivityItem
             icon="shield-checkmark-outline"
-            value="1.2g"
-            label="sodium"
+            value={`${consumed?.sodium ?? 0}mg`}
+            label="sodium today"
           />
         </View>
 
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Today’s meals</Text>
-            <Text style={styles.sectionSubtitle}>3 meals logged</Text>
+            <Text style={styles.sectionSubtitle}>
+              {meals.filter((meal) => meal.logged).length} meals logged
+            </Text>
           </View>
-          <Pressable style={styles.addMealButton}>
+          <Pressable
+            onPress={() => router.push("/(tabs)/fitness")}
+            style={styles.addMealButton}
+          >
             <Ionicons name="add" size={17} color={INK} />
             <Text style={styles.addMealText}>Add meal</Text>
           </Pressable>
@@ -211,7 +271,10 @@ export default function HomeScreen() {
         <View style={styles.mealsCard}>
           {meals.map((meal, index) => (
             <View key={meal.name}>
-              <Pressable style={styles.mealRow}>
+              <Pressable
+                onPress={() => router.push("/(tabs)/fitness")}
+                style={styles.mealRow}
+              >
                 <View
                   style={[
                     styles.mealIcon,
@@ -533,18 +596,25 @@ const styles = StyleSheet.create({
   ringSvg: { position: "absolute" },
   ringValue: { color: "#FFF", fontSize: 18, fontWeight: "900" },
   ringLabel: { color: MUTED, fontSize: 8, marginTop: 1 },
-  macroRow: { flexDirection: "row", gap: 9, marginTop: 20 },
-  macro: { flex: 1, borderRadius: 15, backgroundColor: "#212121", padding: 10 },
-  macroHeading: { flexDirection: "row", alignItems: "center", gap: 5 },
-  macroDot: { width: 5, height: 5, borderRadius: 3 },
-  macroLabel: { color: MUTED, fontSize: 8 },
-  macroValue: { color: "#FFF", fontSize: 11, fontWeight: "800", marginTop: 7 },
-  macroTarget: { color: "#666", fontSize: 8, fontWeight: "500" },
+  macroRow: { flexDirection: "row", gap: 10, marginTop: 22 },
+  macro: {
+    flex: 1,
+    minHeight: 104,
+    borderRadius: 18,
+    backgroundColor: "#212121",
+    padding: 13,
+    justifyContent: "center",
+  },
+  macroHeading: { flexDirection: "row", alignItems: "center", gap: 7 },
+  macroDot: { width: 7, height: 7, borderRadius: 4 },
+  macroLabel: { color: MUTED, fontSize: 10, fontWeight: "600" },
+  macroValue: { color: "#FFF", fontSize: 15, fontWeight: "800", marginTop: 9 },
+  macroTarget: { color: "#777", fontSize: 10, fontWeight: "500" },
   macroTrack: {
     height: 7,
     borderRadius: 4,
     backgroundColor: "#343434",
-    marginTop: 10,
+    marginTop: 12,
     overflow: "hidden",
   },
   macroFill: { height: 7, borderRadius: 4 },

@@ -4,41 +4,66 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import UserAvatar from "@/modules/profile/components/profile-icon";
 import { NotificationModal } from "@/modules/notifications/components/notification-modal";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import SettingsBtn from "../components/settings-btn";
 import { authClient } from "@/lib/auth-client";
+import { useNutritionStore } from "@/stores/nutrition-store";
+import { useTasksStore } from "@/stores/tasks-store";
+import { getLocalDateKey } from "@/lib/date";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
 const CARD = "#191919";
 const MUTED = "#858585";
 
-const demoUser = {
-  name: "Suzi Hathway",
-  username: "suzi_hathway",
-  avatarSeed: "suzi Hathway",
-  calories: "1,840",
-  streak: 12,
-  level: 8,
-  days: 76,
-};
-
-const week = [
-  { day: "Mon", date: "24", state: "done" },
-  { day: "Tue", date: "25", state: "done" },
-  { day: "Wed", date: "26", state: "low" },
-  { day: "Thu", date: "27", state: "today" },
-  { day: "Fri", date: "28", state: "future" },
-  { day: "Sat", date: "29", state: "future" },
-  { day: "Sun", date: "30", state: "future" },
-];
-
 export default function ProfileScreen() {
   const notificationRef = useRef<BottomSheetModal>(null);
   const { data: session } = authClient.useSession();
+  const nutrition = useNutritionStore();
+  const taskStore = useTasksStore();
+  useEffect(() => {
+    void nutrition.loadSummary();
+    void taskStore.load();
+  }, [nutrition.loadSummary, taskStore.load]);
   const displayName = session?.user.name || "Uli user";
   const username =
-    session?.user.email?.split("@")[0] || displayName.toLowerCase().replace(/\s+/g, "_");
+    session?.user.email?.split("@")[0] ||
+    displayName.toLowerCase().replace(/\s+/g, "_");
+  const consumed = nutrition.summary?.summary.consumed.calories ?? 0;
+  const target = nutrition.summary?.summary.target.calories ?? 2000;
+  const completedTasks = taskStore.tasks.filter(
+    (task) => task.status === "completed",
+  ).length;
+  const openTasks = taskStore.tasks.length - completedTasks;
+  const mealsLogged = Object.values(nutrition.summary?.byMeal ?? {}).filter(
+    (meal) => meal.itemsCount > 0,
+  ).length;
+  const week = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const key = getLocalDateKey(date);
+      const dayTasks = taskStore.tasks.filter(
+        (task) => task.scheduledDate === key,
+      );
+      return {
+        day: date.toLocaleDateString(undefined, { weekday: "short" }),
+        date: String(date.getDate()),
+        state:
+          key === getLocalDateKey()
+            ? "today"
+            : dayTasks.length > 0 &&
+                dayTasks.every((task) => task.status === "completed")
+              ? "done"
+              : date > now
+                ? "future"
+                : "low",
+      };
+    });
+  }, [taskStore.tasks]);
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
@@ -69,7 +94,7 @@ export default function ProfileScreen() {
         <View style={styles.profileHero}>
           <View style={styles.avatarRing}>
             <View style={styles.avatarClip}>
-              <UserAvatar username={session?.user.id || demoUser.avatarSeed} />
+              <UserAvatar username={session?.user.id || "uli-user"} />
             </View>
             <View style={styles.onlineBadge}>
               <Ionicons name="checkmark" size={12} color={INK} />
@@ -86,15 +111,15 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <Stat icon="flame" value={`${demoUser.streak}`} label="Day streak" />
-          <View style={styles.divider} />
-          <Stat icon="ribbon" value={`${demoUser.level}`} label="Level" />
-          <View style={styles.divider} />
           <Stat
-            icon="calendar"
-            value={`${demoUser.days}`}
-            label="Active days"
+            icon="checkmark-done"
+            value={`${completedTasks}`}
+            label="Completed"
           />
+          <View style={styles.divider} />
+          <Stat icon="list" value={`${openTasks}`} label="Open tasks" />
+          <View style={styles.divider} />
+          <Stat icon="calendar" value={`${mealsLogged}`} label="Meals today" />
         </View>
 
         <View style={styles.weekCard}>
@@ -102,12 +127,12 @@ export default function ProfileScreen() {
             <View>
               <Text style={styles.sectionTitle}>Your consistency</Text>
               <Text style={styles.sectionSubtitle}>
-                4 of 7 daily goals completed
+                Task completion across this week
               </Text>
             </View>
             <View style={styles.streakPill}>
               <Ionicons name="flame" size={14} color={INK} />
-              <Text style={styles.streakPillText}>{demoUser.streak}</Text>
+              <Text style={styles.streakPillText}>{completedTasks}</Text>
             </View>
           </View>
 
@@ -146,13 +171,21 @@ export default function ProfileScreen() {
             <Text style={styles.cardKicker}>TODAY</Text>
             <Text style={styles.cardTitle}>Keep it balanced!</Text>
             <Text style={styles.cardDescription}>
-              You’re only 160 kcal away from today’s goal.
+              {Math.max(target - consumed, 0).toLocaleString()} kcal remaining
+              today.
             </Text>
             <View style={styles.progressTrack}>
-              <View style={styles.progressFill} />
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${target > 0 ? Math.min(consumed / target, 1) * 100 : 0}%`,
+                  },
+                ]}
+              />
             </View>
             <Text style={styles.progressLabel}>
-              {demoUser.calories} / 2,000 kcal
+              {consumed.toLocaleString()} / {target.toLocaleString()} kcal
             </Text>
           </View>
         </View>
@@ -180,7 +213,7 @@ export default function ProfileScreen() {
           <SettingRow
             icon="flag-outline"
             title="Nutrition goal"
-            value="2,000 kcal"
+            value={`${target.toLocaleString()} kcal`}
           />
           <View style={styles.settingDivider} />
           <SettingRow
