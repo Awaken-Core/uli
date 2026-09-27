@@ -6,8 +6,9 @@ import {
 } from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
 import { RefObject, useCallback, useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Text } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";

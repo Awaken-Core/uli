@@ -7,13 +7,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useNutritionStore } from "@/stores/nutrition-store";
+import { Text, TextInput } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27",
   INK = "#101010",

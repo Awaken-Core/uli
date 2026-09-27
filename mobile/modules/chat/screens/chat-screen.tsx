@@ -8,11 +8,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Text, TextInput } from "@/components/ui/typography";
 
 type Message = {
   id: string;
@@ -164,19 +163,19 @@ export default function ChatScreen() {
       current.map((chat) =>
         chat.id === activeId
           ? {
-            ...chat,
-            title: chat.messages.length ? chat.title : text.slice(0, 32),
-            date: "Now",
-            messages: [
-              ...chat.messages,
-              {
-                id: Date.now().toString(),
-                role: "user" as const,
-                text,
-                time,
-              },
-            ],
-          }
+              ...chat,
+              title: chat.messages.length ? chat.title : text.slice(0, 32),
+              date: "Now",
+              messages: [
+                ...chat.messages,
+                {
+                  id: Date.now().toString(),
+                  role: "user" as const,
+                  text,
+                  time,
+                },
+              ],
+            }
           : chat,
       ),
     );
@@ -185,20 +184,20 @@ export default function ChatScreen() {
         current.map((chat) =>
           chat.id === activeId
             ? {
-              ...chat,
-              messages: [
-                ...chat.messages,
-                {
-                  id: `${Date.now()}a`,
-                  role: "agent" as const,
-                  text: replyFor(text),
-                  time: new Date().toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }),
-                },
-              ],
-            }
+                ...chat,
+                messages: [
+                  ...chat.messages,
+                  {
+                    id: `${Date.now()}a`,
+                    role: "agent" as const,
+                    text: replyFor(text),
+                    time: new Date().toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    }),
+                  },
+                ],
+              }
             : chat,
         ),
       );
@@ -239,7 +238,9 @@ export default function ChatScreen() {
             !active.messages.length && s.emptyContent,
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardDismissMode={
+            Platform.OS === "ios" ? "interactive" : "on-drag"
+          }
           showsVerticalScrollIndicator={false}
         >
           {!active.messages.length ? (

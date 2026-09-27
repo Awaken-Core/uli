@@ -13,8 +13,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +22,7 @@ import type { MealType } from "@/lib/constants";
 import { getLocalDateKey } from "@/lib/date";
 import { useNutritionStore } from "@/stores/nutrition-store";
 import { useRouter } from "expo-router";
+import { Text, TextInput } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27",
   INK = "#101010",

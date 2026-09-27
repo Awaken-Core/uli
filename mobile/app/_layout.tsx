@@ -4,6 +4,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as SystemUI from "expo-system-ui";
 import { ActivityIndicator, View } from "react-native";
 import { useEffect } from "react";
+import {
+  Geist_500Medium,
+  Geist_600SemiBold,
+  useFonts,
+} from "@expo-google-fonts/geist";
 
 import { authClient } from "@/lib/auth-client";
 import { useNutritionStore } from "@/stores/nutrition-store";
@@ -13,6 +18,10 @@ SystemUI.setBackgroundColorAsync("#101010");
 
 export default function RootLayout() {
   const { data: session, isPending } = authClient.useSession();
+  const [fontsLoaded, fontError] = useFonts({
+    Geist_500Medium,
+    Geist_600SemiBold,
+  });
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -21,7 +30,7 @@ export default function RootLayout() {
     }
   }, [isPending, session]);
 
-  if (isPending) {
+  if (isPending || (!fontsLoaded && !fontError)) {
     return (
       <View
         style={{

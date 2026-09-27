@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +17,7 @@ import { authClient } from "@/lib/auth-client";
 import { useNutritionStore } from "@/stores/nutrition-store";
 import { useTasksStore } from "@/stores/tasks-store";
 import { getLocalDateKey } from "@/lib/date";
+import { Text } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
@@ -196,7 +196,6 @@ export default function HomeScreen() {
               <Ionicons name="add" size={17} color={INK} />
             </View>
             <Text style={styles.logFoodText}>Log food</Text>
-            <Text style={styles.logFoodHint}>Keep today’s progress moving</Text>
             <Ionicons name="arrow-forward" size={16} color={INK} />
           </Pressable>
         </View>
@@ -229,7 +228,6 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Nutrition targets</Text>
             <Text style={styles.sectionSubtitle}>Your daily quality check</Text>
           </View>
-          <Text style={styles.viewAll}>View all</Text>
         </View>
 
         <View style={styles.activityCard}>
@@ -601,7 +599,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 104,
     borderRadius: 18,
-    backgroundColor: "#212121",
+    borderWidth: 1,
+    borderColor: "#161616",
+    backgroundColor: "#1A1A1A",
     padding: 13,
     justifyContent: "center",
   },
@@ -635,12 +635,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(16,16,16,.1)",
   },
-  logFoodText: { color: INK, fontSize: 11, fontWeight: "900", marginLeft: 9 },
-  logFoodHint: {
+  logFoodText: {
     flex: 1,
-    color: "rgba(16,16,16,.58)",
-    fontSize: 7.5,
-    marginLeft: 7,
+    color: INK,
+    fontSize: 11,
+    fontWeight: "900",
+    marginLeft: 9,
   },
   quickRow: { flexDirection: "row", gap: 11, marginTop: 12 },
   targetCard: {
@@ -691,7 +691,6 @@ const styles = StyleSheet.create({
     marginBottom: 11,
     paddingHorizontal: 2,
   },
-  viewAll: { color: GREEN, fontSize: 9, fontWeight: "800" },
   activityCard: {
     height: 103,
     borderRadius: 21,

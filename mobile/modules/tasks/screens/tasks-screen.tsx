@@ -19,8 +19,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -34,6 +32,7 @@ import {
 } from "@/lib/constants";
 import type { TaskItem } from "@/lib/api";
 import { useTasksStore } from "@/stores/tasks-store";
+import { Text, TextInput } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27",
   INK = "#101010",

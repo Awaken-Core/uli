@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import UserAvatar from "@/modules/profile/components/profile-icon";
 import { NotificationModal } from "@/modules/notifications/components/notification-modal";
@@ -10,6 +10,7 @@ import { authClient } from "@/lib/auth-client";
 import { useNutritionStore } from "@/stores/nutrition-store";
 import { useTasksStore } from "@/stores/tasks-store";
 import { getLocalDateKey } from "@/lib/date";
+import { Text } from "@/components/ui/typography";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";

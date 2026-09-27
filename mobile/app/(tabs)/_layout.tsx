@@ -38,10 +38,11 @@ export default function TabLayout() {
           height: 100,
           paddingBottom: 12,
           paddingTop: 8,
+          marginBottom: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
+          fontFamily: "Geist_600SemiBold",
+          fontSize: 12,
           marginTop: 2,
         },
 
