@@ -117,8 +117,8 @@ export async function POST(req: NextRequest) {
         nutritionId: result.links?.nutritionId,
         foodId: result.links?.foodId,
         metaData: {
-          decision: result.decision,
-          ...(result.tool ? { tool: result.tool } : {}),
+          decisions: result.decisions,
+          ...(result.tools.length > 0 ? { tools: result.tools } : {}),
           model: env.OPENROUTER_TEXT_MODELID,
         },
       })

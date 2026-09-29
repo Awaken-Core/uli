@@ -1,39 +1,76 @@
+import type { MessageContent } from "@langchain/core/messages";
 import { env } from "./env";
-import { decisionMaker, type AgentAction } from "./decision-model";
+import { decisionMaker, extractParameters, type AgentAction, type Decision, type PriorToolResult } from "./decision-model";
 import { LLM } from "./openrouter";
-import { availableAgentActions, executeAgentTool } from "./tools";
+import { availableAgentActions, executeAgentTool, type ToolOutput } from "./tools";
 
 export interface AgentHistoryMessage {
   role: "user" | "agent" | "system";
   message: string;
 }
 
+export interface ToolResult {
+  action: AgentAction;
+  result: ToolOutput;
+}
+
 export interface AgentResult {
   message: string;
   token?: number;
-  decision: { action: AgentAction; reasoning: string; confidence: number };
-  tool?: { name: AgentAction; result: unknown };
+  decisions: Decision[];
+  tools: ToolResult[];
   links?: { taskId?: string; nutritionId?: string; foodId?: string };
 }
 
-function contentToText(content: unknown): string {
+const SYSTEM_PROMPT = `You are Uli, a personal health and productivity assistant.
+
+Personality: concise, honest, supportive but not sycophantic.
+
+You have access to these capabilities (handled automatically — never generate tool calls, XML, or function calls yourself):
+- Searching nutrition facts for any food
+- Logging meals and food consumption
+- Saving custom food items
+- Creating tasks, todos, and reminders
+
+Your job is to write a natural language response based on the tool results provided to you.
+
+Rules:
+- NEVER output tool calls, XML tags, function calls, or code blocks as your response. You are a conversational assistant, not a tool executor.
+- Only confirm a record was created if the tool result contains a success or id.
+- If a tool returned an error, explain what went wrong plainly.
+- Never reveal internal action routing, confidence scores, or raw tool names to the user.
+- When nutritional data comes from a search, cite the source briefly.
+- Use metric units by default unless the user specifies otherwise.
+- When multiple tools ran, summarize the combined outcome naturally.
+- If no tool results are provided, answer conversationally with what you know.`;
+
+const ACTION_TO_LINK_KEY: Partial<Record<AgentAction, keyof NonNullable<AgentResult["links"]>>> = {
+  create_task: "taskId",
+  log_meal: "nutritionId",
+  add_food: "foodId",
+};
+
+function extractText(content: MessageContent): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.map((part) => {
-      if (typeof part === "string") return part;
-      if (part && typeof part === "object" && "text" in part) return String(part.text);
-      return "";
-    }).join("\n");
+    return content
+      .map((p) => ("text" in p && typeof p.text === "string" ? p.text : ""))
+      .join("\n");
   }
   return String(content ?? "");
 }
 
-function linkedIds(action: AgentAction, result: unknown): AgentResult["links"] {
-  if (!result || typeof result !== "object" || !("id" in result) || typeof result.id !== "string") return undefined;
-  if (action === "create_task") return { taskId: result.id };
-  if (action === "log_meal") return { nutritionId: result.id };
-  if (action === "add_food") return { foodId: result.id };
-  return undefined;
+function extractLinks(toolResults: ToolResult[]): AgentResult["links"] | undefined {
+  const links: AgentResult["links"] = {};
+  let hasAny = false;
+  for (const { action, result } of toolResults) {
+    const key = ACTION_TO_LINK_KEY[action];
+    if (key && "id" in result && typeof result.id === "string") {
+      links[key] = result.id;
+      hasAny = true;
+    }
+  }
+  return hasAny ? links : undefined;
 }
 
 export async function runAgent(input: {
@@ -41,44 +78,78 @@ export async function runAgent(input: {
   history: AgentHistoryMessage[];
   requestHeaders: Headers;
 }): Promise<AgentResult> {
-  const context = input.history.slice(-12).map(({ role, message }) => `${role}: ${message}`).join("\n");
-  const decision = await decisionMaker({
+  const recentHistory = input.history.slice(-12);
+  const context = recentHistory.map((h) => `${h.role}: ${h.message}`).join("\n");
+
+  // 1. Decide which tools to use (may be multiple)
+  const decisions = await decisionMaker({
     goal: input.message,
     context,
     availableActions: availableAgentActions,
   });
-  let toolResult: unknown;
 
-  if (decision.action !== "respond") {
+  // 2. Execute tools sequentially, passing prior results forward
+  const toolResults: ToolResult[] = [];
+
+  for (const decision of decisions) {
+    if (decision.action === "respond") continue;
+
+    // Extract parameters with awareness of prior tool results
+    const actionDef = availableAgentActions.find((a) => a.name === decision.action);
+    const priorResults: PriorToolResult[] = toolResults.map((t) => ({
+      action: t.action,
+      result: t.result,
+    }));
+
+    decision.parameters = await extractParameters({
+      goal: input.message,
+      context,
+      action: decision.action,
+      parameterSchema: actionDef?.parameters,
+      priorResults: priorResults.length > 0 ? priorResults : undefined,
+    });
+
     try {
-      toolResult = await executeAgentTool(
+      const result = await executeAgentTool(
         decision.action,
         decision.parameters,
         input.requestHeaders,
       );
-    } catch (cause) {
-      toolResult = { error: cause instanceof Error ? cause.message : "Tool execution failed" };
+      toolResults.push({ action: decision.action, result });
+    } catch (err) {
+      toolResults.push({
+        action: decision.action,
+        result: { error: err instanceof Error ? err.message : "Tool execution failed" },
+      });
     }
   }
 
-  const response = await LLM(env.OPENROUTER_TEXT_MODELID).invoke([
-    {
-      role: "system",
-      content: "You are Uli, a concise health, nutrition, habit, and task assistant. Be honest about uncertainty. Do not claim a record was created unless the tool result confirms it. Never expose internal routing reasoning.",
-    },
-    ...input.history.slice(-12).map((item) => ({
-      role: item.role === "agent" ? ("assistant" as const) : item.role,
-      content: item.message,
+  // 3. Generate natural language response with all tool results
+  const toolSummary = toolResults.length > 0
+    ? toolResults
+        .map((t) => `Tool ${t.action} returned: ${JSON.stringify(t.result)}`)
+        .join("\n\n")
+    : undefined;
+
+  const messages = [
+    { role: "system" as const, content: SYSTEM_PROMPT },
+    ...recentHistory.map((h) => ({
+      role: h.role === "agent" ? ("assistant" as const) : h.role,
+      content: h.message,
     })),
-    { role: "user", content: input.message },
-    ...(toolResult === undefined ? [] : [{ role: "system" as const, content: `Tool ${decision.action} returned: ${JSON.stringify(toolResult)}` }]),
-  ]);
+    { role: "user" as const, content: input.message },
+    ...(toolSummary
+      ? [{ role: "system" as const, content: toolSummary }]
+      : []),
+  ];
+
+  const response = await LLM(env.OPENROUTER_TEXT_MODELID).invoke(messages);
 
   return {
-    message: contentToText(response.content),
+    message: extractText(response.content),
     token: response.usage_metadata?.total_tokens,
-    decision: { action: decision.action, reasoning: decision.reasoning, confidence: decision.confidence },
-    ...(toolResult === undefined ? {} : { tool: { name: decision.action, result: toolResult } }),
-    links: linkedIds(decision.action, toolResult),
+    decisions,
+    tools: toolResults,
+    links: extractLinks(toolResults),
   };
 }

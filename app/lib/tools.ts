@@ -5,7 +5,33 @@ import { z } from "zod";
 import { env } from "./env";
 import type { AgentAction } from "./decision-model";
 
+// --- Shared types ---
+
 export type ToolAction = Exclude<AgentAction, "respond">;
+
+/** JSON Schema object as returned by z.toJSONSchema(). Passed through to the LLM for parameter extraction. */
+export type JsonSchema = Record<string, unknown>;
+
+export interface NutritionSearchResult {
+  food: string;
+  quantityGrams: number;
+  requestedFields: string[];
+  answer: string;
+  sources: { title: string; url: string; content: string }[];
+}
+
+export interface ApiResponse {
+  id: string;
+  [key: string]: string | number | boolean | null | Date | undefined;
+}
+
+export interface ToolError {
+  error: string;
+}
+
+export type ToolOutput = NutritionSearchResult | ApiResponse | ToolError;
+
+// --- Internal types ---
 
 interface ToolContext {
   requestHeaders: Headers;
@@ -14,8 +40,10 @@ interface ToolContext {
 interface ToolDefinition {
   description: string;
   inputSchema: z.ZodType;
-  execute: (input: unknown, context: ToolContext) => Promise<unknown>;
+  execute: (input: Record<string, unknown>, context: ToolContext) => Promise<ToolOutput>;
 }
+
+// --- Nutrition fields ---
 
 const nutritionFields = {
   calories: z.number().nonnegative().optional(),
@@ -28,16 +56,20 @@ const nutritionFields = {
   sodiumMilligrams: z.number().nonnegative().optional(),
 };
 
+// --- Schemas ---
+
 const searchFoodNutritionSchema = z.object({
-  food: z.string().min(1).describe("Specific food, preparation, and brand if known"),
-  quantityGrams: z.number().positive().default(100).describe("Edible portion in grams"),
-});
+  food: z.string().optional().describe("Food name, preparation, and brand if known"),
+  query: z.string().optional().describe("Alternative field name for food"),
+  quantityGrams: z.coerce.number().positive().optional().describe("Edible portion in grams, defaults to 100"),
+  quantity: z.coerce.number().positive().optional().describe("Alternative field name for quantityGrams"),
+}).passthrough();
 
 const logMealSchema = z
   .object({
     foodId: z.string().uuid().optional(),
     foodName: z.string().min(1).optional(),
-    mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).optional(),
+    mealType: z.enum(["breakfast", "lunch", "dinner", "snack"]).default("breakfast").optional(),
     source: z.enum(["manual", "savedFood", "barcode", "ai"]).default("ai"),
     quantity: z.number().positive().default(1),
     quantityUnit: z.string().min(1).default("serving"),
@@ -73,7 +105,7 @@ const createTaskSchema = z.object({
   parentTaskId: z.string().uuid().optional(),
   status: z.enum(["todo", "inProgress", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  scheduledDate: z.string().date().optional(),
   scheduledStartAt: z.string().datetime().optional(),
   scheduledEndAt: z.string().datetime().optional(),
   dueAt: z.string().datetime().optional(),
@@ -83,7 +115,18 @@ const createTaskSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
-async function postToApp(path: string, body: unknown, requestHeaders: Headers) {
+// --- Helpers ---
+
+function parseSearchInput(input: Record<string, unknown>): { food: string; quantityGrams: number } {
+  const parsed = searchFoodNutritionSchema.safeParse(input);
+  if (!parsed.success) return { food: String(input), quantityGrams: 100 };
+  return {
+    food: parsed.data.food || parsed.data.query || "",
+    quantityGrams: parsed.data.quantityGrams || parsed.data.quantity || 100,
+  };
+}
+
+async function postToApp(path: string, body: Record<string, unknown>, requestHeaders: Headers): Promise<ApiResponse> {
   const headers = new Headers({ "content-type": "application/json" });
   const cookie = requestHeaders.get("cookie");
   const authorization = requestHeaders.get("authorization");
@@ -95,8 +138,8 @@ async function postToApp(path: string, body: unknown, requestHeaders: Headers) {
     headers,
     body: JSON.stringify(body),
   });
-  const result: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const result = (await response.json().catch(() => null)) as ApiResponse | null;
+  if (!response.ok || !result) {
     throw new Error(`Tool request failed (${response.status}): ${JSON.stringify(result)}`);
   }
   return result;
@@ -111,26 +154,29 @@ function apiTool(
     description,
     inputSchema,
     execute: async (input, { requestHeaders }) =>
-      postToApp(path, inputSchema.parse(input), requestHeaders),
+      postToApp(path, inputSchema.parse(input) as Record<string, unknown>, requestHeaders),
   };
 }
 
+// --- Tool definitions ---
+
 const toolDefinitions: Record<ToolAction, ToolDefinition> = {
   search_food_nutrition: {
-    description: "Search reliable web sources for nutrition facts normalized to a gram quantity.",
+    description: "Search reliable web sources for nutrition facts about a food.",
     inputSchema: searchFoodNutritionSchema,
-    execute: async (input) => {
-      const { food, quantityGrams } = searchFoodNutritionSchema.parse(input);
+    execute: async (input): Promise<NutritionSearchResult | ToolError> => {
+      const { food, quantityGrams } = parseSearchInput(input);
+      if (!food) return { error: "No food specified to search for." };
+
       const result = await tavily({ apiKey: env.TAVILY_API_KEY }).search(
         `${food} nutrition for ${quantityGrams} grams calories protein carbohydrates total fat saturated fat fiber sugar sodium`,
         {
           includeAnswer: "advanced",
-          includeDomainsMode: "prefer",
-          includeDomains: ["fdc.nal.usda.gov", "usda.gov", "nih.gov"],
           maxResults: 5,
           searchDepth: "advanced",
         },
       );
+
       return {
         food,
         quantityGrams,
@@ -140,16 +186,19 @@ const toolDefinitions: Record<ToolAction, ToolDefinition> = {
       };
     },
   },
+
   log_meal: apiTool(
-    "Create a consumed nutrition entry for the authenticated user.",
+    "Log a meal or food the user consumed.",
     "/api/nutrition/entries",
     logMealSchema,
   ),
+
   add_food: apiTool(
     "Save a reusable food and its per-serving nutrition for the authenticated user.",
     "/api/nutrition/foods",
     addFoodSchema,
   ),
+
   create_task: apiTool(
     "Create a task or reminder for the authenticated user.",
     "/api/tasks",
@@ -157,13 +206,17 @@ const toolDefinitions: Record<ToolAction, ToolDefinition> = {
   ),
 };
 
-const toolNames = Object.keys(toolDefinitions) as ToolAction[];
+// --- Exports ---
 
-export const availableAgentActions: {
+export interface AvailableAction {
   name: AgentAction;
   description: string;
-  parameters?: unknown;
-}[] = [
+  parameters?: JsonSchema;
+}
+
+const toolNames = Object.keys(toolDefinitions) as ToolAction[];
+
+export const availableAgentActions: AvailableAction[] = [
   { name: "respond", description: "Answer without changing data." },
   ...toolNames.map((name) => ({
     name,
@@ -176,6 +229,6 @@ export async function executeAgentTool(
   name: ToolAction,
   input: Record<string, unknown>,
   requestHeaders: Headers,
-) {
+): Promise<ToolOutput> {
   return toolDefinitions[name].execute(input, { requestHeaders });
 }
