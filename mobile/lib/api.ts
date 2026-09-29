@@ -150,6 +150,31 @@ export interface DailyNutritionSummary {
   >;
 }
 
+export interface ChatConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "agent" | "system";
+  message: string;
+  createdAt: string;
+}
+
+export interface ChatHistory {
+  conversations: ChatConversation[];
+  conversation: ChatConversation | null;
+  messages: ChatMessage[];
+}
+
+export interface ChatReply {
+  conversation: ChatConversation;
+  messages: ChatMessage[];
+}
+
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const cookie = await authClient.getCookie();
   const res = await fetch(`${apiBaseUrl}${endpoint}`, {
@@ -387,6 +412,22 @@ export const goalsApi = {
     return request<NutritionGoal>(`/api/nutrition/goals/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+  },
+};
+
+export const chatApi = {
+  getHistory: (conversationId?: string) => {
+    const search = new URLSearchParams();
+    if (conversationId) search.set("conversationId", conversationId);
+    const qs = search.toString();
+    return request<ChatHistory>(`/api/chat${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (message: string, conversationId?: string) => {
+    return request<ChatReply>("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, conversationId }),
     });
   },
 };

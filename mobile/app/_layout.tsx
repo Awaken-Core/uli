@@ -11,6 +11,7 @@ import {
 } from "@expo-google-fonts/geist";
 
 import { authClient } from "@/lib/auth-client";
+import { useChatStore } from "@/stores/chat-store";
 import { useNutritionStore } from "@/stores/nutrition-store";
 import { useTasksStore } from "@/stores/tasks-store";
 
@@ -25,6 +26,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!isPending && !session) {
+      useChatStore.getState().reset();
       useNutritionStore.getState().reset();
       useTasksStore.getState().reset();
     }
