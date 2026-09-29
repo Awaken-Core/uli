@@ -11,6 +11,7 @@ export const env = createEnv({
     OPENROUTER_API: z.string().min(1),
     OPENROUTER_TEXT_MODELID: z.string().min(1),
     OPENROUTER_DECISION_MODELID: z.string().min(1),
+    TAVILY_API_KEY: z.string().min(1),
     MCP_SERVER_URL: z.string().url().default("http://localhost:9000/mcp"),
   },
   client: {

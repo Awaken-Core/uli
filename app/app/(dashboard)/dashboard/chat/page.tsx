@@ -1,28 +1,13 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Bot, CheckCircle2, Droplets, Flame, Loader2, MessageSquare, PanelLeftOpen, Plus, Send, Sparkles, Utensils } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Bot,
-  Send,
-  Sparkles,
-  User,
-  Utensils,
-  CheckCircle2,
-  Flame,
-  Droplets,
-  Loader2,
-} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { PageHeader } from "@/components/page-header";
 import { useSession } from "@/lib/auth-client";
 
@@ -33,27 +18,112 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ChatPayload {
+  conversations: ConversationSummary[];
+  conversation: ConversationSummary | null;
+  messages: { id: string; role: "user" | "agent" | "system"; message: string; createdAt: string }[];
+}
+
+function toChatMessage(message: ChatPayload["messages"][number]): ChatMessage {
+  return {
+    id: message.id,
+    sender: message.role === "user" ? "user" : "ai",
+    text: message.message,
+    timestamp: new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+function conversationDate(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export default function HealthChatPage() {
   const { data: session } = useSession();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      sender: "ai",
-      text: "Hello! I am your Uli Health & Habit Assistant. I can analyze your daily calorie balance, suggest high-protein meals, review your scheduled tasks, and guide your routine. How can I help you today?",
-      timestamp: "Just now",
-    },
-  ]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string>();
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [error, setError] = useState<string>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const optimisticIdRef = useRef(0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const activeConversation = conversations.find(({ id }) => id === conversationId);
+
+  const loadConversation = useCallback(async (id?: string) => {
+    setIsLoadingConversation(true);
+    setError(undefined);
+    try {
+      const query = id ? `?conversationId=${encodeURIComponent(id)}` : "";
+      const response = await fetch(`/api/chat${query}`);
+      const data = await response.json() as ChatPayload & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Unable to load conversation");
+      setConversations(data.conversations);
+      setConversationId(data.conversation?.id);
+      setMessages(data.messages.map(toChatMessage));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load conversation");
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+    let cancelled = false;
+    fetch("/api/chat")
+      .then(async (response) => {
+        const data = await response.json() as ChatPayload & { error?: string };
+        if (!response.ok) throw new Error(data.error ?? "Unable to load conversation");
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setConversations(data.conversations);
+        setConversationId(data.conversation?.id);
+        setMessages(data.messages.map(toChatMessage));
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Unable to load conversation");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingConversation(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isTyping]);
+
+  const startNewChat = () => {
+    if (isTyping) return;
+    setConversationId(undefined);
+    setMessages([]);
+    setInputText("");
+    setError(undefined);
+    setHistoryOpen(false);
+  };
+
+  const selectConversation = async (id: string) => {
+    if (isTyping || id === conversationId) {
+      setHistoryOpen(false);
+      return;
+    }
+    setHistoryOpen(false);
+    await loadConversation(id);
+  };
 
   const starterPrompts = [
     { label: "Analyze my macros for today", icon: Utensils },
@@ -62,181 +132,169 @@ export default function HealthChatPage() {
     { label: "Hydration tip for afternoon fatigue", icon: Droplets },
   ];
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
-    if (!text.trim()) return;
+    if (!text.trim() || isTyping) return;
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      sender: "user",
-      text: text.trim(),
-      timestamp: "Just now",
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
+    optimisticIdRef.current += 1;
+    const optimisticId = `optimistic-${optimisticIdRef.current}`;
+    setMessages((current) => [...current, { id: optimisticId, sender: "user", text: text.trim(), timestamp: "Just now" }]);
     if (!textToSend) setInputText("");
     setIsTyping(true);
+    setError(undefined);
 
-    // Contextual AI simulation response
-    setTimeout(() => {
-      let responseText =
-        "Great question! Based on your target goals, maintaining a consistent balance of lean proteins and complex carbohydrates will keep your energy stable. Let me know if you want to log any specific foods or adjust your schedule.";
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: text.trim(), conversationId }),
+      });
+      const data = await response.json() as {
+        error?: string;
+        conversation?: ConversationSummary;
+        messages?: ChatPayload["messages"];
+      };
+      if (!response.ok) throw new Error(data.error ?? "Unable to send message");
 
-      const lower = text.toLowerCase();
-      if (lower.includes("macro") || lower.includes("nutrition")) {
-        responseText =
-          "Looking at your profile: A standard split of 30% Protein, 45% Carbohydrates, and 25% Healthy Fats matches your energy demand. For a 2,000 kcal target, aim for 150g Protein, 225g Carbs, and 55g Fat. You can track this in real-time under Nutrition & Diet!";
-      } else if (lower.includes("snack") || lower.includes("protein")) {
-        responseText =
-          "Here are 3 quick high-protein snacks under 200 kcal:\n1. 150g Non-fat Greek Yogurt with blueberries (130 kcal, 17g Protein)\n2. 2 Hard-boiled Eggs with sea salt & pepper (140 kcal, 12g Protein)\n3. 1 scoop Whey Protein with unsweetened almond milk (140 kcal, 24g Protein)";
-      } else if (lower.includes("task") || lower.includes("schedule") || lower.includes("priority")) {
-        responseText =
-          "To optimize productivity: Focus on your 1-2 'Urgent' or 'High' tasks first during your morning peak focus window (9am-12pm). Schedule 30-minute blocks with explicit estimates, which you can set directly in your Tasks & Planner tab!";
-      } else if (lower.includes("water") || lower.includes("hydration")) {
-        responseText =
-          "Aim for at least 2,500ml daily. Afternoon fatigue is frequently caused by mild dehydration. Drink a 500ml glass now with electrolytes or a pinch of mineral salt for immediate alertness!";
+      if (data.conversation) {
+        setConversationId(data.conversation.id);
+        setConversations((current) => [data.conversation!, ...current.filter(({ id }) => id !== data.conversation!.id)]);
       }
 
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "ai",
-        text: responseText,
-        timestamp: "Just now",
-      };
-
-      setMessages((prev) => [...prev, aiMsg]);
+      const savedUser = data.messages?.find(({ role }) => role === "user");
+      const savedAgent = data.messages?.find(({ role }) => role === "agent");
+      setMessages((current) => {
+        const reconciled = current.map((message) => message.id === optimisticId && savedUser ? toChatMessage(savedUser) : message);
+        return savedAgent ? [...reconciled, toChatMessage(savedAgent)] : reconciled;
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to send message");
+    } finally {
       setIsTyping(false);
-    }, 900);
+    }
   };
 
-  return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <PageHeader title="AI Health & Habit Assistant" />
-
-      <div className="flex-1 flex flex-col p-4 md:p-8 pt-4 max-w-5xl mx-auto w-full min-h-0">
-        {/* Top Header Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 mb-4 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Bot className="size-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold tracking-tight flex items-center gap-2">
-                <span>Uli Assistant</span>
-                <Badge variant="secondary" className="text-[10px] font-mono">
-                  GPT-4o Ready
-                </Badge>
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Personalized dietary, lifestyle, and task optimization guidance.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Sparkles className="size-3.5 text-primary" />
-            <span>Health as a Service (HaaS)</span>
-          </div>
-        </div>
-
-        {/* Chat History Box */}
-        <Card className="flex-1 flex flex-col min-h-0 border-border/80 bg-card overflow-hidden">
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 text-xs ${
-                  msg.sender === "user" ? "flex-row-reverse" : "flex-row"
-                }`}
+  const conversationList = (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b p-3">
+        <Button type="button" variant="outline" className="h-9 w-full justify-start gap-2" onClick={startNewChat} disabled={isTyping} data-testid="new-chat">
+          <Plus className="size-4" /> New chat
+        </Button>
+      </div>
+      <div className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Conversations</div>
+      <ScrollArea className="min-h-0 flex-1 px-2 pb-3">
+        <div className="space-y-1">
+          {conversations.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">Your conversations will appear here.</p>}
+          {conversations.map((item) => {
+            const active = item.id === conversationId;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => void selectConversation(item.id)}
+                disabled={isTyping}
+                data-conversation-id={item.id}
+                className={`group flex w-full items-start gap-2 rounded-lg px-2.5 py-2.5 text-left transition-colors ${active ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"}`}
               >
-                <Avatar className="size-7 shrink-0">
-                  {msg.sender === "user" ? (
-                    <AvatarFallback className="bg-primary text-primary-foreground text-[10px]">
-                      {session?.user?.name?.slice(0, 1).toUpperCase() || "U"}
-                    </AvatarFallback>
-                  ) : (
-                    <AvatarFallback className="bg-muted text-foreground text-[10px]">
-                      <Bot className="size-3.5 text-primary" />
-                    </AvatarFallback>
-                  )}
-                </Avatar>
+                <MessageSquare className={`mt-0.5 size-3.5 shrink-0 ${active ? "text-primary" : ""}`} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium">{item.title}</span>
+                  <span className="mt-0.5 block text-[10px] text-muted-foreground">{conversationDate(item.updatedAt)}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
 
-                <div
-                  className={`rounded-xl p-3.5 max-w-[85%] sm:max-w-[75%] space-y-1 ${
-                    msg.sender === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
-                      : "bg-muted/40 border border-border/70 text-foreground rounded-tl-none whitespace-pre-line"
-                  }`}
-                >
-                  <p className="leading-relaxed">{msg.text}</p>
-                  <span
-                    className={`text-[9px] block text-right font-mono ${
-                      msg.sender === "user"
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {msg.timestamp}
-                  </span>
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="AI Health & Habit Assistant" />
+      <div className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1 p-3 md:p-5">
+        <div className="flex min-h-[620px] flex-1 overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+          <aside className="hidden w-64 shrink-0 border-r bg-muted/15 md:block">{conversationList}</aside>
+
+          <section className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b px-3 py-3 sm:px-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+                  <SheetTrigger asChild>
+                    <Button type="button" variant="outline" size="icon-lg" className="md:hidden" aria-label="Open conversations"><PanelLeftOpen /></Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-[19rem] p-0" showCloseButton={false}>
+                    <SheetHeader className="sr-only"><SheetTitle>Conversations</SheetTitle></SheetHeader>
+                    {conversationList}
+                  </SheetContent>
+                </Sheet>
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Bot className="size-4" /></div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate text-sm font-semibold">{activeConversation?.title ?? "New conversation"}</h2>
+                    <Badge variant="secondary" className="hidden text-[9px] font-mono sm:inline-flex">Uli AI</Badge>
+                  </div>
+                  <p className="truncate text-[11px] text-muted-foreground">Personalized nutrition, lifestyle, and task guidance</p>
                 </div>
               </div>
-            ))}
-
-            {isTyping && (
-              <div className="flex gap-3 text-xs">
-                <Avatar className="size-7 shrink-0">
-                  <AvatarFallback className="bg-muted text-foreground text-[10px]">
-                    <Bot className="size-3.5 text-primary" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted/40 border border-border/70 rounded-xl rounded-tl-none p-3 text-muted-foreground flex items-center gap-2">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  <span>Thinking...</span>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </CardContent>
-
-          {/* Quick Prompts & Input Area */}
-          <div className="border-t p-3 bg-muted/20 space-y-3 shrink-0">
-            {/* Suggestion Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
-              {starterPrompts.map((prompt) => (
-                <button
-                  key={prompt.label}
-                  type="button"
-                  onClick={() => handleSendMessage(prompt.label)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-border bg-background hover:bg-muted text-foreground transition-colors shrink-0"
-                >
-                  <prompt.icon className="size-3 text-primary" />
-                  <span>{prompt.label}</span>
-                </button>
-              ))}
+              <div className="hidden items-center gap-1 text-xs text-muted-foreground lg:flex"><Sparkles className="size-3.5 text-primary" /><span>Health as a Service</span></div>
             </div>
 
-            {/* Input Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex gap-2"
-            >
-              <Input
-                placeholder="Ask about meal planning, macro balance, or task routines..."
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                className="h-9 text-xs"
-              />
-              <Button type="submit" size="sm" className="h-9 px-3 shrink-0 gap-1">
-                <Send className="size-3.5" />
-                <span className="hidden sm:inline">Send</span>
-              </Button>
-            </form>
-          </div>
-        </Card>
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="mx-auto w-full max-w-4xl space-y-5 p-4 sm:p-6">
+                {isLoadingConversation && <div className="flex min-h-64 items-center justify-center text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>}
+                {!isLoadingConversation && messages.length === 0 && (
+                  <div className="mx-auto flex min-h-72 max-w-lg flex-col items-center justify-center text-center">
+                    <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Sparkles className="size-5" /></div>
+                    <h3 className="text-lg font-semibold">How can I help today?</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">Ask about nutrition, log a meal, or turn an idea into a task.</p>
+                  </div>
+                )}
+
+                {!isLoadingConversation && messages.map((message) => (
+                  <div key={message.id} className={`flex gap-3 text-xs ${message.sender === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                    <Avatar className="size-7 shrink-0">
+                      <AvatarFallback className={message.sender === "user" ? "bg-primary text-primary-foreground text-[10px]" : "bg-muted text-foreground text-[10px]"}>
+                        {message.sender === "user" ? session?.user?.name?.slice(0, 1).toUpperCase() || "U" : <Bot className="size-3.5 text-primary" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className={`max-w-[85%] space-y-1 rounded-xl p-3.5 sm:max-w-[75%] ${message.sender === "user" ? "rounded-tr-none bg-primary text-primary-foreground" : "rounded-tl-none border border-border/70 bg-muted/40 text-foreground whitespace-pre-line"}`}>
+                      <p className="leading-relaxed">{message.text}</p>
+                      <span className={`block text-right font-mono text-[9px] ${message.sender === "user" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{message.timestamp}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {isTyping && (
+                  <div className="flex gap-3 text-xs">
+                    <Avatar className="size-7 shrink-0"><AvatarFallback className="bg-muted text-foreground text-[10px]"><Bot className="size-3.5 text-primary" /></AvatarFallback></Avatar>
+                    <div className="flex items-center gap-2 rounded-xl rounded-tl-none border border-border/70 bg-muted/40 p-3 text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /><span>Thinking...</span></div>
+                  </div>
+                )}
+                {error && <p className="text-center text-xs text-destructive">{error}</p>}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            <div className="shrink-0 border-t bg-muted/15 p-3 sm:px-5">
+              <div className="mx-auto max-w-4xl space-y-3">
+                {messages.length === 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                    {starterPrompts.map((prompt) => (
+                      <button key={prompt.label} type="button" onClick={() => void handleSendMessage(prompt.label)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-foreground transition-colors hover:bg-muted">
+                        <prompt.icon className="size-3 text-primary" /><span>{prompt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={(event) => { event.preventDefault(); void handleSendMessage(); }} className="flex gap-2">
+                  <Input placeholder="Message Uli..." value={inputText} onChange={(event) => setInputText(event.target.value)} disabled={isLoadingConversation} className="h-10 text-xs" />
+                  <Button disabled={isTyping || isLoadingConversation} type="submit" size="lg" className="h-10 shrink-0 gap-1.5 px-4"><Send className="size-3.5" /><span className="hidden sm:inline">Send</span></Button>
+                </form>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

@@ -143,7 +143,7 @@ export function DashboardSidebar() {
             icon: ChartColumn,
         },
         {
-            title: "AI Health Chat",
+            title: "Uli Chat",
             url: "/dashboard/chat",
             icon: Bot,
             badge: "AI",

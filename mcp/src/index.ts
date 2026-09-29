@@ -6,11 +6,6 @@ import * as z from "zod/v4";
 import { env } from "./config/env";
 import { toolError, toolResult } from "./utils";
 
-  const server = new McpServer({ 
-    name: "uli-mcp-server", 
-    version: "1.0.0" 
-  });
-
 const mealTypeSchema = z.enum(["breakfast", "lunch", "dinner", "snack"]);
 const nutritionSourceSchema = z.enum(["manual", "savedFood", "barcode", "ai"]);
 const taskStatusSchema = z.enum(["todo", "inProgress", "completed", "cancelled"]);
@@ -28,6 +23,10 @@ const nutritionFields = {
 };
 
 function createServer(request: Request) {
+  const server = new McpServer({
+    name: "uli-mcp-server",
+    version: "1.0.0",
+  });
   const authorization = request.headers.get("authorization");
   const cookie = request.headers.get("cookie");
 
@@ -182,21 +181,50 @@ const app = createMcpHonoApp();
 
 const appBaseUrl = env.SERVER_URL;
 const authBaseUrl = `${appBaseUrl}/api/auth`;
+
+function handleMcpProtocolRequest(request: Request) {
+  const handler = createMcpHandler(
+    ({ requestInfo }) => createServer(requestInfo ?? request),
+    { legacy: "reject" },
+  );
+  return handler.fetch(request);
+}
+
 const handleAuthenticatedMcpRequest = createMcpProtectedRequestHandler(
   {
     issuer: authBaseUrl,
     audience: env.MCP_SERVER_URL,
     jwksUrl: `${authBaseUrl}/jwks`,
   },
-  async (request) => {
-    const handler = createMcpHandler(
-      ({ requestInfo }) => createServer(requestInfo ?? request),
-      { legacy: "reject" },
-    );
-    return handler.fetch(request);
-  },
+  handleMcpProtocolRequest,
 );
 
-app.post("/mcp", (c) => handleAuthenticatedMcpRequest(c.req.raw));
+async function hasValidBetterAuthSession(request: Request) {
+  const cookie = request.headers.get("cookie");
+  if (!cookie) return false;
+
+  try {
+    const response = await fetch(new URL("/api/auth/get-session", env.SERVER_URL), {
+      headers: { cookie, accept: "application/json" },
+    });
+    if (!response.ok) return false;
+
+    const result = await response.json() as { session?: unknown; user?: unknown } | null;
+    return Boolean(result?.session && result.user);
+  } catch {
+    return false;
+  }
+}
+
+app.post("/mcp", async (c) => {
+  const request = c.req.raw;
+  if (request.headers.get("authorization")?.startsWith("Bearer ")) {
+    return handleAuthenticatedMcpRequest(request);
+  }
+  if (await hasValidBetterAuthSession(request)) {
+    return handleMcpProtocolRequest(request);
+  }
+  return handleAuthenticatedMcpRequest(request);
+});
 
 export default app;

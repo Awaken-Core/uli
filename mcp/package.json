@@ -7,14 +7,18 @@
     "cf-typegen": "wrangler types --env-interface CloudflareBindings"
   },
   "dependencies": {
+    "@better-auth/core": "1.7.6",
+    "@better-auth/mcp": "1.7.6",
+    "@better-auth/oauth-provider": "1.7.6",
     "@modelcontextprotocol/hono": "^2.0.1",
     "@modelcontextprotocol/server": "^2.2.0",
     "@t3-oss/env-core": "^0.13.11",
     "@tavily/core": "^0.7.13",
     "@types/node": "^26.6.3",
+    "better-auth": "1.7.6",
     "hono": "^4.13.9",
     "langchain": "^1.5.14",
-    "zod": "^4.6.5"
+    "zod": "4.2.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260928.1",
