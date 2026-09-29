@@ -6,7 +6,6 @@ export const env = createEnv({
   server: {
     SERVER_URL: z.string().min(1),
     TAVILY_API_KEY: z.string().min(1),
-    OPENROUTER_API: z.string().min(1),
-    OPENROUTER_MODELID: z.string().min(1),
+    MCP_SERVER_URL: z.string().url().default("http://localhost:9000/mcp"),
   }
 });

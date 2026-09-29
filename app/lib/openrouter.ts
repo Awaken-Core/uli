@@ -1,9 +1,9 @@
 import { ChatOpenRouter } from "@langchain/openrouter";
 import { env } from "./env";
 
-export const chatModel = () => {
+export const LLM = (modelId: string) => {
     return new ChatOpenRouter({
-        model: env.OPENROUTER_MODELID,
+        model: modelId,
 		temperature: 0,
         apiKey: env.OPENROUTER_API,
     })

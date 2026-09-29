@@ -5,8 +5,14 @@ import { signIn } from '@/lib/auth-client'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { GoogleIcon } from '@hugeicons/core-free-icons'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 const LoginPage = () => {
+    const searchParams = useSearchParams()
+    const oauthQuery = searchParams.toString()
+    const callbackURL = oauthQuery
+        ? `/api/auth/oauth2/authorize?${oauthQuery}`
+        : "/"
 
     return (
         <section className='flex min-h-screen bg-zinc-50 dark:bg-transparent px-4 py-16 md:py-32 '>
@@ -23,7 +29,7 @@ const LoginPage = () => {
                     <div className='mt-6 grid grid-cols-1 gap-3'>
                         <Button variant='outline' className='w-full' onClick={() => signIn.social({
                             provider: 'google',
-                            callbackURL: "/"
+                            callbackURL
                         })}>
                             <HugeiconsIcon icon={GoogleIcon} size={24} strokeWidth={1.5} className='mr-2 h-4 w-4' />
                             Sign in with Google

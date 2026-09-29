@@ -8,6 +8,10 @@ export const env = createEnv({
     GOOGLE_CLIENT_ID: z.string().min(1),
     GOOGLE_CLIENT_SECRET: z.string().min(1),
     BETTER_AUTH_SECRET: z.string().min(1),
+    OPENROUTER_API: z.string().min(1),
+    OPENROUTER_TEXT_MODELID: z.string().min(1),
+    OPENROUTER_DECISION_MODELID: z.string().min(1),
+    MCP_SERVER_URL: z.string().url().default("http://localhost:9000/mcp"),
   },
   client: {
     NEXT_PUBLIC_APP_BASE_URL: z.string().min(1)

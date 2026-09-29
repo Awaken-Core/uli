@@ -3,6 +3,7 @@ import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
 import { notification } from "./notification";
 import { foods, nutritionEntries, nutritionGoals } from "./nutritions";
 import { taskCategories, tasks } from "./tasks";
+import { oauthAccessToken, oauthClient, oauthConsent, oauthRefreshToken } from "./oauth";
 import { UserRoles } from "@/lib/constants";
 
 export const user = pgTable("user", {
@@ -90,13 +91,19 @@ export const userRelations = relations(user, ({ many }) => ({
   foods: many(foods),
   nutritionEntries: many(nutritionEntries),
   nutritionGoals: many(nutritionGoals),
+  oauthClients: many(oauthClient),
+  oauthRefreshTokens: many(oauthRefreshToken),
+  oauthAccessTokens: many(oauthAccessToken),
+  oauthConsents: many(oauthConsent),
 }));
 
-export const sessionRelations = relations(session, ({ one }) => ({
+export const sessionRelations = relations(session, ({ one, many }) => ({
   user: one(user, {
     fields: [session.userId],
     references: [user.id],
   }),
+  oauthRefreshTokens: many(oauthRefreshToken),
+  oauthAccessTokens: many(oauthAccessToken),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
