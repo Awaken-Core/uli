@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { authClient } from "@/lib/auth-client";
 import { Text, TextInput } from "@/components/ui/typography";
+import UserAvatar from "@/modules/profile/components/profile-icon";
 
 const GREEN = "#C5FF27";
 const INK = "#101010";
@@ -102,7 +103,7 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.mark}>
-            <Text style={styles.markText}>U</Text>
+            <UserAvatar username="MehulxVentures" />
           </View>
           <Text style={styles.eyebrow}>YOUR HEALTH, IN BALANCE</Text>
           <Text style={styles.title}>Welcome to Uli</Text>
@@ -228,9 +229,10 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   mark: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 78,
+    height: 78,
+    padding: 3,
+    borderRadius: 50,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: GREEN,

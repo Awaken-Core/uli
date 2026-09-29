@@ -1,9 +1,5 @@
 import { betterAuth } from "better-auth";
 import { expo } from "@better-auth/expo";
-import { cimd } from "@better-auth/cimd";
-import { fetchClientMetadataResource } from "@better-auth/cimd/node";
-import { mcp } from "@better-auth/mcp";
-import { jwt } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { client } from "./db";
 import * as schema from "../schema";
@@ -18,16 +14,6 @@ export const auth = betterAuth({
 
     plugins: [
         expo(),
-        jwt(),
-        mcp({
-            loginPage: "/sign-in",
-            consentPage: "/consent",
-            resource: env.MCP_SERVER_URL,
-        }),
-        cimd({
-            fetchClientMetadataResource,
-            metadataProfile: "mcp-2026-07-28",
-        }),
     ],
     emailAndPassword: {
         enabled: true, // Enable authentication using email and password.
