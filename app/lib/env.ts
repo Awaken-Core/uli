@@ -17,7 +17,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_BASE_URL: z.string().min(1)
   },
   experimental__runtimeEnv: {
-    NEXT_PUBLIC_APP_BASE_URL: "http://localhost:3000"
+    NEXT_PUBLIC_APP_BASE_URL: process.env.NEXT_PUBLIC_APP_BASE_URL
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });
