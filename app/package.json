@@ -11,7 +11,8 @@
     "drizzle:studio": "npx drizzle-kit studio",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "preinstall": "drizzle-kit push"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
